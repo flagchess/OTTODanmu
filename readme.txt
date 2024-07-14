@@ -1,4 +1,4 @@
-最后更新于 2024.02.18  by DJKawaii
+最后更新于 2024.07.14  by DJKawaii
 基于@DSP_8192 的项目修改而来
 感谢@伏尸王结城友奈 的测试
 更新地址：https://github.com/flagchess/biliLiveBroadcaster/releases
@@ -21,6 +21,12 @@
 
 
 更新日志
+2024.07.14
+===========
+
+换了一个cookie获取方式
+
+
 ===========
 
 2024.02.18

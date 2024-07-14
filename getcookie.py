@@ -3,7 +3,7 @@ import httpx
 import qrcode
 import os
 from time import sleep
-
+import requests
 
 def get_qrurl() -> list:
     """返回qrcode链接以及token"""
@@ -59,16 +59,26 @@ def getcookienow(stopcookie):
     make_qrcode(data)
     print("等待扫码中")
     print('\n')
-    while(1):
-        sleep(3)
-        with httpx.Client() as client:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36 QIHU 360SE'
-        }
-            url = f"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={token}&source=main-fe-header"
-            data_login = client.get(url=url, headers=headers)  # 请求二维码状态
-            data_login = json.loads(data_login.text)
-        code = int(data_login['data']['code'])
+    #while(1):
+    #    sleep(3)
+    #    with httpx.Client() as client:
+    #        headers = {
+    #            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36 QIHU 360SE'
+    #    }
+    #        url = f"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={token}&source=main-fe-header"
+    #        data_login = client.get(url=url, headers=headers)  # 请求二维码状态
+    #        data_login = json.loads(data_login.text)
+    #    code = int(data_login['data']['code'])
+    check_login_url = f'https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={token}&source=main-fe-header'
+    session = requests.Session()
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0',
+        'Referer': 'https://www.bilibili.com/',
+        'Origin': 'https://www.bilibili.com'
+    }
+    while (1):
+        datack = session.get(url=check_login_url, headers=headers).json()
+        code = datack['data']['code']
         if code == 86090:
             print("已扫码，请在手机上确认登录")
             print('\n')
@@ -79,11 +89,11 @@ def getcookienow(stopcookie):
             break  
         if stopcookie.is_set():
             break
-    while(1):
         if code == 0:
             print("登录成功")
             print('\n')
-            cookie = dict(client.cookies)
+            datack = session.get('https://www.bilibili.com/', headers=headers)
+            cookie = session.cookies.get_dict()
             sav_cookie(cookie, 'cookie')
             print("成功保存了新的登录状态")
             print('\n')
@@ -93,15 +103,15 @@ def getcookienow(stopcookie):
         if stopcookie.is_set():
             break
         sleep(3)
-        with httpx.Client() as client:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36 QIHU 360SE'
-        }
-            url = f"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={token}&source=main-fe-header"
-            data_login = client.get(url=url, headers=headers)  # 请求二维码状态
-            data_login = json.loads(data_login.text)
-        code = int(data_login['data']['code'])
-    return code
+        #with httpx.Client() as client:
+        #    headers = {
+        #        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36 QIHU 360SE'
+        #}
+        #    url = f"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={token}&source=main-fe-header"
+        #    data_login = client.get(url=url, headers=headers)  # 请求二维码状态
+        #    data_login = json.loads(data_login.text)
+        #code = int(data_login['data']['code'])
+    #return code
         
 
 
@@ -124,7 +134,7 @@ def load_UID() -> dict:
     try:
         file = open(f'./cookie.json', 'r')
         cookie = dict(json.load(file))
-        UID = cookie["DedeUserID"]
+        UID = cookie['DedeUserID']
     except Exception:
         msg = "cookie错误, 请重启程序后重新登录"
         cookie = 'null'

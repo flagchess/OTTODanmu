@@ -836,7 +836,7 @@ volumeMultScale = Scale(mainWindow, from_=0, to=3, orient=HORIZONTAL, width=15, 
 checkupdateCkBt = Button(mainWindow, text="更新", command=checkupdate, height=1, width=8,
 					font=font.Font(family="微软雅黑", size=8))
 checkupdateinfo = Label(mainWindow, 
-						text="最后更新于 2024.02.18  by DJKawaii\n基于DSP-8192的项目修改而来\n更新地址：https://github.com/flagchess/biliLiveBroadcaster/releases", 
+						text="最后更新于 2024.07.14  by DJKawaii\n基于DSP-8192的项目修改而来\n更新地址：https://github.com/flagchess/biliLiveBroadcaster/releases", 
 						font=font.Font(family="微软雅黑", size=10))
 updateinfoCkBt = Button(mainWindow, text="关于", command=updateinfo, height=1, width=8,
 					font=font.Font(family="微软雅黑", size=8))
@@ -855,7 +855,7 @@ if __name__ == "__main__":
 	#主窗口
 	#-----------------------------
 	mainWindow.geometry("480x830")
-	mainWindow.title("电棍棍活字 ver.2024.02.18")
+	mainWindow.title("电棍棍活字 ver.2024.07.14")
 	mainWindow.resizable(False, False)
 	#窗口图标
 	try:
