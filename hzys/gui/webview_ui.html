@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>电棍棍活字</title>
+<style>
+  :root {
+    /* macOS 系统色：浅色模式 */
+    --text: #1d1d1f;
+    --muted: #6e6e73;
+    --accent: #007aff;
+    --danger: #d70015;
+    --hairline: rgba(0, 0, 0, 0.10);
+    /* 卡片用系统"分组背景"色（设置 App 那种白卡片），不用半透明 */
+    --card: #ffffff;
+    --card-border: rgba(0, 0, 0, 0.08);
+    --control: #ffffff;
+    --control-border: rgba(0, 0, 0, 0.12);
+    --field: #ffffff;
+    --seg-track: rgba(120, 120, 128, 0.14);
+    --switch-off: rgba(120, 120, 128, 0.32);
+    /* 液态玻璃药丸：底色 + 亮边(rim) + 内部柔光(glow) + 投影 */
+    --glass-fill-1: rgba(255, 255, 255, 0.90);
+    --glass-fill-2: rgba(255, 255, 255, 0.55);
+    --glass-rim: rgba(255, 255, 255, 0.95);
+    --glass-glow: rgba(255, 255, 255, 0.40);
+    --glass-shadow: rgba(0, 0, 0, 0.20);
+    --toast: rgba(30, 30, 32, 0.92);
+    --toast-warn: rgba(190, 45, 45, 0.94);
+    --window: #ececec;
+  }
+  /* 跟着系统深浅色走 */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --text: #f5f5f7;
+      --muted: #98989d;
+      --accent: #0a84ff;
+      --danger: #ff453a;
+      --hairline: rgba(255, 255, 255, 0.12);
+      --card: #2c2c2e;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --control: rgba(255, 255, 255, 0.14);
+      --control-border: rgba(255, 255, 255, 0.12);
+      --field: rgba(255, 255, 255, 0.10);
+      --seg-track: rgba(120, 120, 128, 0.24);
+      --switch-off: rgba(120, 120, 128, 0.40);
+      --glass-fill-1: rgba(255, 255, 255, 0.20);
+      --glass-fill-2: rgba(255, 255, 255, 0.06);
+      --glass-rim: rgba(255, 255, 255, 0.55);
+      --glass-glow: rgba(255, 255, 255, 0.13);
+      --glass-shadow: rgba(0, 0, 0, 0.45);
+      --toast: rgba(58, 58, 62, 0.95);
+      --toast-warn: rgba(200, 60, 60, 0.95);
+      --window: #1e1e1e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--window);          /* 不透明，和系统标题栏同色 */
+    color: var(--text);
+    /* 优先用系统的 San Francisco，中文落到苹方 */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+                 "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    color-scheme: light dark;           /* 让输入框/滑块也跟着深浅色走 */
+  }
+  /* 真的要做透明窗口时才让底色透出去（现在两边都是不透明的） */
+  body:not(.opaque) { background: transparent; }
+  /* 窗口按钮交给系统原生标题栏，这里只排内容 */
+  .root {
+    display: flex; flex-direction: column; height: 100%;
+    padding: 14px;
+  }
+
+  /* ── 卡片 ── */
+  .card {
+    background: var(--card);
+    border: 0.5px solid var(--card-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.05);
+  }
+  .card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  .row .value { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .row .grow { flex: 1; }
+  /* 开关行：文字在左、开关贴右（macOS 设置里就是这个顺序） */
+  .row .item { display: flex; align-items: center; gap: 10px; flex: 1 1 0; min-width: 0; }
+  .row .item > .label {
+    flex: 1 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ── 输出区 ── */
+  #outputCard { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 120px; }
+  /* 这个框和 Tk 版一样是「输入 + 日志」二合一：
+     本地模式往里输要播报的文字，直播模式显示弹幕日志（切模式时清空）。 */
+  #log {
+    flex: 1 1 auto; width: 100%; font-size: 12.5px; line-height: 1.7;
+    font-family: inherit; color: inherit;
+    background: transparent; border: none; outline: none; resize: none;
+    user-select: text; cursor: text;
+  }
+  #log::placeholder { color: var(--muted); }
+  body.hidelog #outputCard { display: none; }
+
+  /* ── 页面栏：分段控件 + 右侧按钮 ── */
+  .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex: 0 0 auto; }
+
+  /* 液态玻璃分段控件：一条玻璃轨道，选中项后面浮着一块会滑动的玻璃药丸 */
+  .segmented {
+    position: relative; display: inline-flex; align-items: center;
+    padding: 2px; border-radius: 9px;
+    background: var(--seg-track);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: inset 0 0 0 0.5px var(--hairline), inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  .seg-pill {
+    position: absolute; top: 2px; left: 2px; height: calc(100% - 4px); width: 0;
+    border-radius: 7px;
+    /* 液态玻璃：斜向半透明底 + 亮边 + 内部柔光 + 投影，
+       这几层叠加才是玻璃的观感（纯色底上靠 blur 是看不出玻璃的） */
+    background: linear-gradient(
+      150deg,
+      var(--glass-fill-1),
+      var(--glass-fill-2) 48%,
+      var(--glass-fill-1)
+    );
+    -webkit-backdrop-filter: blur(10px) saturate(180%) brightness(1.06);
+    backdrop-filter: blur(10px) saturate(180%) brightness(1.06);
+    box-shadow: inset 0 0 2px 1px var(--glass-rim),
+                inset 0 0 10px 3px var(--glass-glow),
+                inset 0 -8px 14px -6px var(--glass-glow),
+                inset 0 8px 20px -8px rgba(0, 0, 0, 0.10),
+                0 1px 3px var(--glass-shadow),
+                0 6px 16px -6px var(--glass-shadow);
+    transition: transform 0.36s cubic-bezier(0.32, 1.2, 0.45, 1),
+                width 0.36s cubic-bezier(0.32, 1.2, 0.45, 1);
+    pointer-events: none;
+    will-change: transform, width;
+  }
+  /* 第一次摆位置时不要动（否则会从左边"飞"过来） */
+  .seg-pill.instant { transition: none; }
+  .seg {
+    position: relative; z-index: 1; padding: 5px 14px; border-radius: 7px;
+    cursor: default; white-space: nowrap; font-weight: 400; color: var(--muted);
+    transition: color 0.2s;
+  }
+  .seg.active { color: var(--text); font-weight: 500; }
+  .seg .badge {
+    position: absolute; top: 3px; right: 5px; width: 5px; height: 5px;
+    border-radius: 50%; background: var(--accent);
+  }
+  .spacer { flex: 1; }
+
+  /* macOS 风格的按钮：和设置 App 里一样——浅灰底 + 发丝描边 + 极淡投影 */
+  .btn {
+    min-height: 24px; padding: 3px 13px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 6px; cursor: default;
+    background: var(--control);
+    box-shadow: inset 0 0 0 0.5px var(--control-border),
+                0 0.5px 1px rgba(0, 0, 0, 0.10);
+    transition: filter 0.12s, transform 0.05s;
+  }
+  .btn:hover { filter: brightness(0.97); }
+  .btn:active { filter: brightness(0.94); transform: translateY(0.5px); }
+  .btn.primary {
+    background: var(--accent); color: #fff;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12),
+                0 0.5px 2px rgba(0, 0, 0, 0.16);
+  }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.mini { min-height: 21px; padding: 1px 9px; font-size: 12px; border-radius: 5px; }
+  .disabled { opacity: .45; pointer-events: none; }
+
+  /* ── 控件 ── */
+  .switch {
+    width: 38px; height: 22px; border-radius: 11px; background: var(--switch-off);
+    position: relative; flex: 0 0 auto; cursor: default;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+    transition: background 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .switch.on { background: var(--accent); box-shadow: none; }
+  .switch i {
+    position: absolute; top: 1.5px; left: 1.5px; width: 19px; height: 19px;
+    border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+    transition: left 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .switch.on i { left: 17.5px; }
+
+  /* macOS 风格的滑杆：细轨道 + 已填充部分 + 白色圆钮 */
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; height: 20px; margin: 0; background: transparent;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 2px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 var(--fill, 50%),
+      var(--seg-track) var(--fill, 50%) 100%
+    );
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 20px; height: 20px; margin-top: -8px; border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.30), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  }
+  input[type=range]:active::-webkit-slider-thumb { box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35); }
+  input[type=range]:focus { outline: none; }
+
+  input[type=text] {
+    width: 140px; padding: 4px 8px; border-radius: 6px;
+    border: 0.5px solid var(--control-border); background: var(--field);
+    box-shadow: inset 0 1px 1.5px rgba(0, 0, 0, 0.06);
+    font-family: inherit; font-size: 12.5px; color: inherit;
+    outline: none; user-select: text;
+  }
+  input[type=text]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2.5px rgba(10, 132, 255, 0.25);
+  }
+  .pathRow .title { flex: 0 0 auto; }
+  .pathRow .value {
+    flex: 1 1 auto; margin: 0 10px; color: var(--muted); font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .footerRow { align-items: flex-end; gap: 8px; }
+  .footerRow .info { flex: 1 1 auto; color: var(--muted); font-size: 11px; line-height: 1.6; white-space: pre-line; }
+
+  /* ── 页面切换 ── */
+  .page { display: none; overflow-y: auto; flex: 1 1 auto; }
+  .page.active { display: block; }
+
+  /* ── 提示条 ── */
+  #toasts { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 99; }
+
+  /* ── 子界面弹层：关于 / 词典编辑都用它 ── */
+  .modal {
+    position: fixed; inset: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.28);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  }
+  .modal[hidden] { display: none; }
+  .modal-card {
+    display: flex; flex-direction: column;
+    width: min(560px, calc(100% - 40px)); max-height: 82%;
+    background: var(--card); border: 0.5px solid var(--card-border);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; font-weight: 600;
+    border-bottom: 0.5px solid var(--hairline);
+  }
+  .modal-close { cursor: default; color: var(--muted); padding: 0 4px; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 14px 16px; overflow: auto; }
+  .modal-body .info { white-space: pre-wrap; font-size: 12px; line-height: 1.75; }
+  .modal-foot {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 16px; border-top: 0.5px solid var(--hairline);
+  }
+  /* 词典编辑里的小表格 */
+  .dictRow { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+  .dictRow input { flex: 1 1 0; min-width: 0; width: auto; }
+  .dictRow .idx { width: 24px; text-align: right; color: var(--muted); font-size: 12px; }
+  .dictHint { color: var(--muted); font-size: 12px; padding: 6px 0; }
+  /* 扫码登录 */
+  .loginPanel { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .qrImage {
+    width: 210px; height: 210px; image-rendering: pixelated;
+    background: #fff; border-radius: 8px; padding: 8px;
+  }
+  .toast {
+    max-width: 420px; margin-top: 8px; padding: 10px 16px; border-radius: 10px;
+    background: var(--toast); color: #fff; font-size: 12.5px; line-height: 1.6;
+    white-space: pre-line; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+  .toast.warn { background: var(--toast-warn); }
+</style>
+</head>
+<body>
+<div class="root">
+
+  <div class="card" id="outputCard">
+    <h3>弹幕输出</h3>
+    <textarea id="log" spellcheck="false" placeholder="在这里输入要播报的文字"></textarea>
+  </div>
+
+  <div class="bar" id="bar"></div>
+  <div id="pages"></div>
+  <div id="toasts"></div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <span id="modalTitle"></span>
+        <span class="modal-close" id="modalClose">✕</span>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+const dom = {};          // 控件缓存：name -> element
+let layout = null;       // gui/layout.py 描述的结构
+let state = null;        // 当前界面状态
+let currentPage = "local";
+
+// ─────────── 启动：向 Python 要结构和状态，然后渲染 ───────────
+
+async function boot() {
+  layout = await pywebview.api.getLayout();
+  state = await pywebview.api.getState();
+  document.title = layout.windowTitle;
+  // 卡片标题和输入框提示也来自 gui/layout.py，跟经典界面用同一份
+  if (layout.outputTitle) {
+    document.querySelector("#outputCard h3").textContent = layout.outputTitle;
+  }
+  if (layout.placeholder) {
+    document.getElementById("log").placeholder = layout.placeholder;
+  }
+  // 窗口底色用系统真实值（Python 那边取的，和标题栏同色）
+  if (layout.windowColor) {
+    document.documentElement.style.setProperty("--window", layout.windowColor);
+  }
+  document.body.classList.toggle("opaque", !!layout.opaque);
+  buildBar();
+  buildPages();
+  applyState(state);
+
+  // 输出框同时是本地模式的输入框：打字要回传给 Python，
+  // 程序自己往里追加日志时也要回传，否则 getInputText() 会读到旧内容
+  const logBox = document.getElementById("log");
+  logBox.addEventListener("input", notifyInput);
+
+  // 子界面的关闭方式：右上角 ✕、点遮罩、按 Esc
+  document.getElementById("modalClose").onclick = closeModal;
+  document.getElementById("modal").addEventListener("click", event => {
+    if (event.target.id === "modal") closeModal();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeModal();
+  });
+
+  // 字体换完之后页签宽度会变，重新量一次
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => movePill());
+  }
+}
+
+function notifyInput() {
+  pywebview.api.inputChanged(document.getElementById("log").value);
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function buildBar() {
+  const bar = document.getElementById("bar");
+  bar.innerHTML = "";
+
+  // 分段控件：一条玻璃轨道 + 一块会滑到选中项底下的玻璃药丸
+  const group = el("div", "segmented");
+  const pill = el("div", "seg-pill");
+  pill.id = "segPill";
+  group.appendChild(pill);
+  layout.pages.forEach(page => {
+    const seg = el("div", "seg", page.title);
+    seg.dataset.page = page.id;
+    seg.onclick = () => pywebview.api.selectPage(page.id);
+    group.appendChild(seg);
+  });
+  bar.appendChild(group);
+  bar.appendChild(el("div", "spacer"));
+
+  const secondary = el("div", "btn", "");
+  secondary.id = "secondaryButton";
+  secondary.onclick = () => pywebview.api.action(layout.secondaryActions[currentPage]);
+  bar.appendChild(secondary);
+
+  const primary = el("div", "btn primary", "");
+  primary.id = "primaryButton";
+  primary.onclick = () => {
+    const action = state.running ? "stopLive" : layout.primaryActions[currentPage];
+    pywebview.api.action(action);
+  };
+  bar.appendChild(primary);
+
+  window.addEventListener("resize", movePill);
+  // 控件是刚插进去的，等这一帧排完版再量宽度
+  requestAnimationFrame(movePill);
+}
+
+// 把玻璃药丸挪到当前选中项底下（选中项的宽度也跟着变）。
+// 第一次直接摆好不带动画，之后每次换页都会滑过去。
+let pillPlaced = false;
+
+function movePill() {
+  const pill = document.getElementById("segPill");
+  const active = document.querySelector(".seg.active");
+  if (!pill || !active) return;
+
+  const animate = pillPlaced;
+  if (!animate) pill.classList.add("instant");
+  pill.style.width = active.offsetWidth + "px";
+  pill.style.transform = "translateX(" + (active.offsetLeft - 2) + "px)";
+  if (!animate) {
+    void pill.offsetWidth;  // 先把这次的布局定死，再恢复过渡
+    requestAnimationFrame(() => pill.classList.remove("instant"));
+  }
+  pillPlaced = true;
+}
+
+function buildPages() {
+  const host = document.getElementById("pages");
+  host.innerHTML = "";
+  layout.pages.forEach(page => {
+    const wrap = el("div", "page");
+    wrap.id = "page-" + page.id;
+    page.cards.forEach(card => {
+      const cardEl = el("div", "card");
+      cardEl.appendChild(el("h3", null, card.title));
+      card.rows.forEach(row => cardEl.appendChild(renderRow(row)));
+      wrap.appendChild(cardEl);
+    });
+    host.appendChild(wrap);
+  });
+}
+
+function renderRow(row) {
+  if (row.kind === "row") {
+    const line = el("div", "row");
+    row.items.forEach(item => {
+      const cell = el("div", "item");
+      const toggle = el("div", "switch");
+      toggle.dataset.var = item.var;
+      toggle.appendChild(el("i"));
+      toggle.onclick = () => {
+        const next = !toggle.classList.contains("on");
+        toggle.classList.toggle("on", next);
+        pywebview.api.setValue(item.var, next);
+      };
+      // 文字在左、开关贴右
+      cell.appendChild(el("span", "label", item.text));
+      cell.appendChild(toggle);
+      line.appendChild(cell);
+    });
+    return line;
+  }
+
+  if (row.kind === "slider") {
+    const line = el("div", "row");
+    line.appendChild(el("span", null, row.label));
+    const input = el("input");
+    input.type = "range";
+    input.min = row.min; input.max = row.max; input.step = row.step;
+    input.dataset.var = row.var;
+    const value = el("span", "value");
+    value.style.minWidth = "42px"; value.style.textAlign = "right";
+    // 已填充的那一段用 --fill 画出来（macOS 的滑杆是左边填色）
+    const paint = () => {
+      const ratio = (input.value - row.min) / (row.max - row.min);
+      input.style.setProperty("--fill", (ratio * 100).toFixed(2) + "%");
+    };
+    const show = v => {
+      value.textContent = Number(v).toFixed(row.digits);
+      paint();
+    };
+    input.oninput = () => {
+      show(input.value);
+      pywebview.api.setValue(row.var, Number(input.value));
+    };
+    show(input.value);
+    line.appendChild(input);
+    line.appendChild(value);
+    return line;
+  }
+
+  if (row.kind === "path") {
+    const line = el("div", "row pathRow");
+    line.appendChild(el("span", "title", row.title + "："));
+    const value = el("span", "value", "");
+    value.dataset.option = row.option;
+    line.appendChild(value);
+    const pick = el("div", "btn mini", row.choose);
+    pick.onclick = () => pywebview.api.pickPath(row.option);
+    line.appendChild(pick);
+    if (row.editor) {
+      const edit = el("div", "btn mini", row.editText);
+      edit.onclick = () => openDictionary(row.editor);
+      line.appendChild(edit);
+    }
+    return line;
+  }
+
+  if (row.kind === "entry") {
+    const line = el("div", "row");
+    line.appendChild(el("span", null, row.title + "："));
+    const input = el("input");
+    input.type = "text";
+    input.dataset.option = row.option;
+    input.oninput = () => pywebview.api.setEditorValue(row.option, input.value);
+    line.appendChild(input);
+    return line;
+  }
+
+  if (row.kind === "footer") {
+    const line = el("div", "row footerRow");
+    line.appendChild(el("div", "info", row.text));
+    const update = el("div", "btn mini", "更新");
+    update.onclick = () => pywebview.api.action("checkUpdate");
+    const about = el("div", "btn mini", layout.buttons.footerAbout);
+    about.onclick = () => openAbout();
+    line.appendChild(update);
+    line.appendChild(about);
+    return line;
+  }
+
+  return el("div", "row", "未知控件");
+}
+
+// ─────────── 状态同步 ───────────
+
+// ─────────── 子界面（弹层）───────────
+
+function closeModal() {
+  document.getElementById("modal").hidden = true;
+  document.getElementById("modalBody").innerHTML = "";
+  document.getElementById("modalFoot").innerHTML = "";
+}
+
+function openModal(title, bodyNode, buttons) {
+  document.getElementById("modalTitle").textContent = title;
+  const body = document.getElementById("modalBody");
+  body.innerHTML = "";
+  body.appendChild(bodyNode);
+  const foot = document.getElementById("modalFoot");
+  foot.innerHTML = "";
+  buttons.forEach(item => {
+    const button = el("div", "btn" + (item.primary ? " primary" : ""), item.text);
+    button.onclick = item.onclick;
+    foot.appendChild(button);
+  });
+  document.getElementById("modal").hidden = false;
+  body.scrollTop = 0;
+}
+
+// 关于：和经典界面用的是同一份文字（update.getupdateinfo）
+async function openAbout() {
+  const info = await pywebview.api.getAbout();
+  const box = el("div", "info", info.text);
+  openModal(info.title, box, [
+    {
+      text: layout.buttons.aboutAuthor,
+      onclick: () => pywebview.api.action("author"),
+    },
+    {
+      text: layout.buttons.aboutUpdate,
+      primary: true,
+      onclick: () => pywebview.api.action("update"),
+    },
+    { text: layout.buttons.aboutClose, onclick: closeModal },
+  ]);
+}
+
+// 词典编辑：表头这些东西都由 Python 那边（jsonloader.DICTIONARIES）给，
+// 扫码登录：二维码直接画在界面上，不用再弹系统看图窗口
+let loginPanel = null;
+
+function showLoginPanel(image, status, done) {
+  // 面板已经开着就只更新，别重开
+  if (loginPanel) {
+    if (image) loginPanel.image.src = image;
+    loginPanel.status.textContent = status || "";
+    if (done && status.indexOf("成功") >= 0) {
+      setTimeout(() => { loginPanel = null; closeModal(); }, 1200);
+    }
+    return;
+  }
+
+  const wrap = el("div", "loginPanel");
+  const img = el("img", "qrImage");
+  if (image) img.src = image;
+  const text = el("div", "dictHint", status || "");
+  text.style.textAlign = "center";
+  wrap.appendChild(img);
+  wrap.appendChild(text);
+
+  loginPanel = { image: img, status: text };
+  openModal("扫码登录", wrap, [
+    {
+      text: "重新获取二维码",
+      primary: true,
+      onclick: () => pywebview.api.action("relogin"),
+    },
+    { text: "关闭", onclick: () => { loginPanel = null; closeModal(); } },
+  ]);
+}
+
+// 词典编辑：表头这些东西都由 Python 那边（jsonloader.DICTIONARIES）给，
+// 两个界面后端共用同一份定义
+async function openDictionary(mode) {
+  const info = await pywebview.api.getDictionary(mode);
+  const rows = (info.rows || []).map(row => ({ name: row[0], value: row[1] }));
+
+  const wrap = el("div");
+  const list = el("div");
+  wrap.appendChild(list);
+
+  function render() {
+    list.innerHTML = "";
+    if (!rows.length) {
+      list.appendChild(el("div", "dictHint", "还没有条目，点下面的「添加一行」"));
+    }
+    rows.forEach((row, index) => {
+      const line = el("div", "dictRow");
+      line.appendChild(el("span", "idx", String(index + 1)));
+
+      const nameInput = el("input");
+      nameInput.type = "text";
+      nameInput.placeholder = info.name;
+      nameInput.value = row.name;
+      nameInput.oninput = () => { rows[index].name = nameInput.value; };
+
+      const valueInput = el("input");
+      valueInput.type = "text";
+      valueInput.placeholder = info.value;
+      valueInput.value = row.value;
+      valueInput.oninput = () => { rows[index].value = valueInput.value; };
+
+      const remove = el("div", "btn mini", layout.buttons.dictDelete);
+      remove.onclick = () => { rows.splice(index, 1); render(); };
+
+      line.appendChild(nameInput);
+      line.appendChild(valueInput);
+      line.appendChild(remove);
+      list.appendChild(line);
+    });
+  }
+  render();
+
+  const add = el("div", "btn mini", layout.buttons.dictAdd);
+  add.style.marginTop = "8px";
+  add.onclick = () => { rows.push({ name: "", value: "" }); render(); };
+  wrap.appendChild(add);
+
+  openModal(info.title, wrap, [
+    { text: layout.buttons.dictCancel, onclick: closeModal },
+    {
+      text: layout.buttons.dictSave,
+      primary: true,
+      onclick: async () => {
+        const result = await pywebview.api.saveDictionary(
+          mode, rows.map(row => [row.name, row.value])
+        );
+        if (result && result.ok) closeModal();
+      },
+    },
+  ]);
+}
+
+function applyState(s) {
+  state = s;
+  currentPage = s.page;
+  // 系统深浅色变了之后 Python 会推新底色过来，跟着重画
+  if (s.windowColor) {
+    document.documentElement.style.setProperty("--window", s.windowColor);
+  }
+
+  document.querySelectorAll(".seg").forEach(seg => {
+    seg.classList.toggle("active", seg.dataset.page === s.page);
+  });
+  movePill();  // 选中项变了，玻璃药丸滑过去
+  movePill();
+  document.querySelectorAll(".page").forEach(page => {
+    page.classList.toggle("active", page.id === "page-" + s.page);
+  });
+  document.body.classList.toggle("hidelog", !!s.hideLog);
+
+  const secondary = document.getElementById("secondaryButton");
+  const primary = document.getElementById("primaryButton");
+  if (secondary) secondary.textContent = layout.secondary[s.page];
+  if (primary) {
+    primary.textContent = s.running ? layout.primary.running : layout.primary[s.page];
+    primary.classList.toggle("disabled", !!s.busy);
+  }
+
+  // 未保存改动的小圆点
+  const settingsSeg = document.querySelector('.seg[data-page="settings"]');
+  if (settingsSeg) {
+    let badge = settingsSeg.querySelector(".badge");
+    if (s.dirty && !badge) settingsSeg.appendChild(el("i", "badge"));
+    if (!s.dirty && badge) badge.remove();
+  }
+
+  if (s.paths) {
+    document.querySelectorAll("[data-option]").forEach(node => {
+      const value = s.paths[node.dataset.option];
+      if (value !== undefined) node.textContent = value;
+    });
+  }
+  if (s.entries) {
+    document.querySelectorAll("input[type=text][data-option]").forEach(input => {
+      const value = s.entries[input.dataset.option];
+      if (value !== undefined && input.value !== value) input.value = value;
+    });
+  }
+
+  // 复选框 / 滑块
+  syncValues(s.values);
+}
+
+function syncValues(values) {
+  if (!values) return;
+  Object.keys(values).forEach(name => {
+    document.querySelectorAll('[data-var="' + name + '"]').forEach(node => {
+      if (node.classList.contains("switch")) {
+        node.classList.toggle("on", !!values[name]);
+      } else if (node.type === "range") {
+        node.value = values[name];
+        const event = new Event("input");
+        node.dispatchEvent(event);
+      }
+    });
+  });
+}
+
+// ─────────── Python 推过来的更新（按批）───────────
+
+const LOG_LIMIT = 400;
+
+window.hzys = {
+  apply(batch) {
+    batch.forEach(msg => {
+      if (msg.kind === "state") {
+        applyState(msg);
+      } else if (msg.kind === "value") {
+        syncValues({ [msg.name]: msg.value });
+      } else if (msg.kind === "dirty") {
+        const settingsSeg = document.querySelector('.seg[data-page="settings"]');
+        if (!settingsSeg) return;
+        let badge = settingsSeg.querySelector(".badge");
+        if (msg.dirty && !badge) settingsSeg.appendChild(el("i", "badge"));
+        if (!msg.dirty && badge) badge.remove();
+      } else if (msg.kind === "output") {
+        appendLog(msg.text);
+      } else if (msg.kind === "clearOutput") {
+        document.getElementById("log").value = "";
+        notifyInput();
+      } else if (msg.kind === "toast") {
+        toast(msg.text, msg.warn);
+      } else if (msg.kind === "qrcode") {
+        showLoginPanel(msg.image, msg.status, msg.done);
+      } else if (msg.kind === "init") {
+        // Python 说界面可以初始化了（结构已经由 boot 拉过）
+      }
+    });
+  }
+};
+
+function appendLog(text) {
+  const box = document.getElementById("log");
+  box.value += text;
+  const lines = box.value.split("\n");
+  if (lines.length > LOG_LIMIT) {
+    box.value = lines.slice(-LOG_LIMIT).join("\n");
+  }
+  box.scrollTop = box.scrollHeight;
+  notifyInput();
+}
+
+function toast(text, warn) {
+  const host = document.getElementById("toasts");
+  const node = el("div", "toast" + (warn ? " warn" : ""), text);
+  host.appendChild(node);
+  setTimeout(() => node.remove(), 4000);
+}
+
+// pywebview 注入 window.pywebview.api 之后才会派发 pywebviewready 事件，
+// 所以不能等 DOMContentLoaded——那时候 API 还没准备好。
+if (window.pywebview && window.pywebview.api) {
+  boot();
+} else {
+  window.addEventListener("pywebviewready", boot);
+}
+</script>
+</body>
+</html>

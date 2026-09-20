@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder}/mac",
+            "name": "Debug HZYS (mac)",
+            "target": "HZYS",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug HZYS (mac)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder}/mac",
+            "name": "Release HZYS (mac)",
+            "target": "HZYS",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release HZYS (mac)"
+        }
+    ]
+}

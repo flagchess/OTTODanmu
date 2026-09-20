@@ -1,0 +1,20 @@
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+# release/ 里是打包出来的 .app（自带一份 Python 标准库和第三方库），别去格式化它
+extend-exclude = "release"
+
+[tool.isort]
+# 与 black 对齐，否则两个工具会在 import 换行上互相覆盖
+profile = "black"
+extend_skip = ["release"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+extend-exclude = ["release"]
+
+[tool.ruff.lint]
+# 只开能抓真问题的规则：pyflakes（未定义/未使用）+ 语法错误 + bugbear + import 排序。
+# 不启用 UP032（改用 f-string）：项目统一用 "".format() 的写法，保持一致更重要。
+select = ["F", "E9", "B", "I"]

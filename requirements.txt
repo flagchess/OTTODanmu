@@ -1,0 +1,46 @@
+# 运行本程序需要的依赖（Python 3.10 以上）
+#
+#   pip install -r requirements.txt
+#
+# macOS 想要原生界面（SwiftUI）需要 macOS 26 或更新；
+# 其它依赖里没有 macOS 专属的东西，网页界面只在 Windows 上用。
+#
+# Windows 提示：parselmouth（psola 的依赖）需要 Microsoft VC++ 运行库，
+# 干净的 Windows 上如果启动时报“找不到指定的模块”，先安装：
+#   winget install Microsoft.VCRedist.2015+.x64
+# 或者不需要管理员权限的办法：
+#   pip install msvc-runtime
+
+# ── 音频合成 ──
+numpy
+soundfile          # 读写 wav
+pypinyin           # 汉字转拼音（活字印刷的核心）
+psola              # 变调 / 变速（内部依赖 praat-parselmouth）
+
+# ── 播放 ──
+# 原版 playsound 在 Python 3.12 上装不上（setup.py 会报错），
+# 所以用维护中的替代品；源码里两个都兼容，装哪个都能跑。
+# macOS 上实际是调系统自带的 afplay（见 hzys/huoZiYinShua.py），
+# 但模块导入时还是要用到它，所以各平台都装。
+playsound3
+
+# ── 弹幕与登录 ──
+websocket-client   # B 站直播弹幕的 WebSocket 连接
+requests           # HTTP 请求（房间信息、token）
+httpx              # 扫码登录用的 HTTP 客户端
+qrcode             # 生成登录二维码
+brotli             # 弹幕数据是 brotli 压缩的
+
+# ── 界面 ──
+Pillow                        # 窗口图标（lizi.ico 已经嵌进代码里了）
+sv-ttk; sys_platform == "win32"      # 经典界面的 Windows 11 风格主题
+darkdetect; sys_platform == "win32"  # 跟随系统深浅色
+
+# ── 新版界面 ──
+# Windows 的新版界面是网页版：pywebview 用系统自带的 WebView2（顺带会装 pythonnet），
+# 不打包 Chromium，体积很小。macOS 的新版界面是 SwiftUI 原生程序，不需要这个。
+pywebview; sys_platform == "win32"
+
+# ── 打包 / 开发工具（可选）──
+#   pip install pyinstaller          # 打 Windows 的 exe（mac 的 .app 也用它）
+#   pip install black isort ruff     # 开发期的格式化和检查

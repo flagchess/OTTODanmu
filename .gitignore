@@ -1,0 +1,34 @@
+# ── Python 运行/开发过程中产生的东西 ──
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# ── macOS 自己往里塞的文件 ──
+.DS_Store
+
+# ── 运行时产物（都在 data/ 里）──
+# settings.json 和 cookie.json 里存着登录凭据（SESSDATA），不进版本库；
+# 没有 settings.json 时程序首次运行会自己铺一份默认的（见 hzys/config.py）。
+# 三本词典（dictionary.json / ysddTable.json / keyword.json）是出厂内容，要跟着走。
+data/settings.json
+data/cookie.json
+data/tempOutput/
+data/Qrcode.png
+data/*.json.tmp
+Output.wav
+
+# ── 调试/验证留下的日志和截图 ──
+*.log
+shot-*.png
+
+# ── 构建产物 ──
+# PyInstaller 的工作目录和生成的 spec
+dist/
+build/
+*.spec
+# Swift 原生界面的编译缓存（mac/.build 也在内）
+.build/
+# 打包出来的 .app / .exe
+release/
